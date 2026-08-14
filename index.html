@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morango ao Leite 3D - Ultimate Boss Fight</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #050505;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    /* Menus & overlays */
+    .screen-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(10, 3, 15, 0.92);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      color: #fff;
+    }
+
+    h1 {
+      font-size: 48px;
+      color: #ff0055;
+      text-shadow: 0 0 20px #ff0055, 2px 2px 5px #000;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .menu-btn {
+      width: 220px;
+      padding: 14px 24px;
+      margin: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(45deg, #ff0055, #ff5500);
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+
+    .menu-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 25px rgba(255, 0, 85, 0.8);
+    }
+
+    .menu-btn.disabled {
+      background: #444;
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* HUD Interface */
+    #hud {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .bar-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      font-weight: bold;
+      font-size: 13px;
+      text-shadow: 1px 1px 3px #000;
+    }
+
+    .bar-container {
+      width: 340px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 12px rgba(0,0,0,0.8);
+    }
+
+    #player-health-bar {
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, #ff3366, #ff6688);
+      transition: width 0.15s ease;
+    }
+
+    #boss-health-bar {
+      width: 100%; height: 100%;
+      background-color: #2ecc71;
+      transition: width 0.15s ease, background-color 0.3s;
+    }
+
+    #special-container {
+      width: 240px; height: 12px;
+    }
+
+    #special-bar {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, #00d2ff, #0072ff);
+      transition: width 0.1s linear;
+    }
+
+    #phase-text {
+      color: #ffe600;
+      font-weight: 800;
+      text-shadow: 2px 2px 6px #000;
+      font-size: 16px;
+      letter-spacing: 1px;
+    }
+
+    #boss-banner {
+      position: absolute;
+      top: 35%; left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      color: #ff0055;
+      font-size: 36px; font-weight: 900;
+      text-shadow: 0 0 20px #ff0055, 0 0 5px #000;
+      pointer-events: none;
+      z-index: 20;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      text-align: center;
+    }
+
+    #damage-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(255, 0, 0, 0);
+      pointer-events: none;
+      z-index: 5;
+      transition: background-color 0.1s ease;
+    }
+
+    #controls-hint {
+      position: absolute;
+      bottom: 15px; left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      background: rgba(0, 0, 0, 0.75);
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      border: 1px solid rgba(255,255,255,0.2);
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="start-menu" class="screen-overlay">
+    <h1>MORANGO AO LEITE 3D</h1>
+    <button class="menu-btn" onclick="startGame()">PLAY</button>
+    <button class="menu-btn disabled">SHOP (Em breve)</button>
+  </div>
+
+  <div id="gameover-menu" class="screen-overlay" style="display: none;">
+    <h1 style="color: #ff2222; text-shadow: 0 0 20px #ff0000;">VOCÊ FOI DERROTADO!</h1>
+    <button class="menu-btn" onclick="location.reload()">TENTAR NOVAMENTE</button>
+    <button class="menu-btn" style="background: linear-gradient(45deg, #444, #222);" onclick="giveUp()">DESISTIR</button>
+  </div>
+
+  <div id="damage-overlay"></div>
+  <div id="boss-banner">FASE SUPREMA!</div>
+
+  <div id="hud">
+    <div class="bar-wrapper">
+      <span>BOSS:</span>
+      <div class="bar-container">
+        <div id="boss-health-bar"></div>
+      </div>
+    </div>
+
+    <div id="phase-text">FASE 1: Lançando Latas de Leite Ninho!</div>
+
+    <div class="bar-wrapper">
+      <span>PLAYER:</span>
+      <div class="bar-container">
+        <div id="player-health-bar"></div>
+      </div>
+    </div>
+
+    <div class="bar-container" id="special-container">
+      <div id="special-bar"></div>
+    </div>
+  </div>
+
+  <div id="controls-hint">
+    <b>W, A, S, D</b>: Mover | <b>Clique Esquerdo</b>: Atirar Morango | <b>Tecla E</b>: SUPER RAIO DE MORANGO
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    // --- GERENCIADOR DE ÁUDIO (SINTETIZADO WEB AUDIO API) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    let musicInterval = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new AudioContext();
+    }
+
+    function playNote(freq, type, duration, vol = 0.1) {
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playEpicMusic() {
+      initAudio();
+      stopMusic();
+      const notes = [110, 110, 130, 110, 146, 130, 110, 98];
+      let step = 0;
+      musicInterval = setInterval(() => {
+        playNote(notes[step % notes.length], 'sawtooth', 0.25, 0.08);
+        if (step % 2 === 0) playNote(notes[(step + 2) % notes.length] * 2, 'square', 0.15, 0.04);
+        step++;
+      }, 180);
+    }
+
+    function playSadMusic() {
+      initAudio();
+      stopMusic();
+      const sadNotes = [220, 196, 174, 164];
+      let step = 0;
+      musicInterval = setInterval(() => {
+        playNote(sadNotes[step % sadNotes.length], 'sine', 1.2, 0.12);
+        step++;
+      }, 1400);
+    }
+
+    function stopMusic() {
+      if (musicInterval) clearInterval(musicInterval);
+    }
+
+    // --- CENA E CONFIGURAÇÕES 3D ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a030f);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 25, 17);
+    camera.lookAt(0, -1, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xfff0dd, 1.4);
+    mainLight.position.set(12, 25, 12);
+    mainLight.castShadow = true;
+    scene.add(mainLight);
+
+    const floorGeo = new THREE.PlaneGeometry(32, 22);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1b0c21, roughness: 0.5 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(32, 16, 0xff0066, 0x3d1a45);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    // --- GERADORES DE MODELOS ---
+
+    function createRealisticStrawberry(scale = 1) {
+      const group = new THREE.Group();
+      const points = [
+        new THREE.Vector2(0, -0.7 * scale),
+        new THREE.Vector2(0.25 * scale, -0.5 * scale),
+        new THREE.Vector2(0.5 * scale, -0.1 * scale),
+        new THREE.Vector2(0.55 * scale, 0.3 * scale),
+        new THREE.Vector2(0.4 * scale, 0.6 * scale),
+        new THREE.Vector2(0, 0.7 * scale)
+      ];
+
+      const strawberryGeo = new THREE.LatheGeometry(points, 16);
+      const strawberryMat = new THREE.MeshStandardMaterial({ color: 0xff0033, roughness: 0.2, metalness: 0.1 });
+      const strawberry = new THREE.Mesh(strawberryGeo, strawberryMat);
+      group.add(strawberry);
+
+      const seedGeo = new THREE.SphereGeometry(0.035 * scale, 4, 4);
+      const seedMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+      for (let i = 0; i < 20; i++) {
+        const seed = new THREE.Mesh(seedGeo, seedMat);
+        const a = (i / 20) * Math.PI * 2;
+        const h = -0.3 + (i % 5) * 0.2;
+        const radius = (0.55 - Math.abs(h) * 0.3) * scale;
+        seed.position.set(Math.cos(a) * radius, h * scale, Math.sin(a) * radius);
+        group.add(seed);
+      }
+
+      const leafGeo = new THREE.ConeGeometry(0.25 * scale, 0.08 * scale, 5);
+      const leafMat = new THREE.MeshStandardMaterial({ color: 0x00e676 });
+      for(let i = 0; i < 5; i++) {
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        const angle = i * Math.PI * 2 / 5;
+        leaf.position.set(Math.cos(angle) * 0.2 * scale, 0.68 * scale, Math.sin(angle) * 0.2 * scale);
+        leaf.rotation.z = 0.5;
+        leaf.rotation.y = angle;
+        group.add(leaf);
+      }
+      return group;
+    }
+
+    function createPlayerModel() {
+      const group = new THREE.Group();
+      const strawberry = createRealisticStrawberry(1.1);
+      strawberry.position.y = 0.8;
+      strawberry.rotation.x = Math.PI;
+      group.add(strawberry);
+
+      const milkGeo = new THREE.SphereGeometry(0.68, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const milkMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.05 });
+      const milk = new THREE.Mesh(milkGeo, milkMat);
+      milk.position.y = 0.95;
+      group.add(milk);
+      return group;
+    }
+
+    function createNinhoCanModel(scale = 0.8) {
+      const group = new THREE.Group();
+      const canGeo = new THREE.CylinderGeometry(0.5 * scale, 0.5 * scale, 1.1 * scale, 20);
+      const canMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, metalness: 0.8, roughness: 0.2 });
+      const can = new THREE.Mesh(canGeo, canMat);
+      can.position.y = 0.55 * scale;
+      group.add(can);
+
+      const labelGeo = new THREE.CylinderGeometry(0.51 * scale, 0.51 * scale, 0.7 * scale, 20);
+      const labelMat = new THREE.MeshStandardMaterial({ color: 0x0055ff, roughness: 0.4 });
+      const label = new THREE.Mesh(labelGeo, labelMat);
+      label.position.y = 0.55 * scale;
+      group.add(label);
+
+      const lidGeo = new THREE.CylinderGeometry(0.53 * scale, 0.53 * scale, 0.1 * scale, 20);
+      const lidMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.5 });
+      const lid = new THREE.Mesh(lidGeo, lidMat);
+      lid.position.y = 1.1 * scale;
+      group.add(lid);
+      return group;
+    }
+
+    // MODELO DE COPO DE AÇAÍ PURO (FASE 2)
+    function createAcaiCupModel(scale = 0.7) {
+      const group = new THREE.Group();
+
+      // Copo Transparente
+      const cupGeo = new THREE.CylinderGeometry(0.5 * scale, 0.35 * scale, 1.2 * scale, 16);
+      const cupMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, roughness: 0.1 });
+      const cup = new THREE.Mesh(cupGeo, cupMat);
+      cup.position.y = 0.6 * scale;
+      group.add(cup);
+
+      // Conteúdo do Açaí
+      const acaiGeo = new THREE.CylinderGeometry(0.48 * scale, 0.33 * scale, 1.15 * scale, 16);
+      const acaiMat = new THREE.MeshStandardMaterial({ color: 0x240024, roughness: 0.3 });
+      const acai = new THREE.Mesh(acaiGeo, acaiMat);
+      acai.position.y = 0.58 * scale;
+      group.add(acai);
+
+      // Tampa Bolha
+      const domeGeo = new THREE.SphereGeometry(0.51 * scale, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const domeMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, roughness: 0.1 });
+      const dome = new THREE.Mesh(domeGeo, domeMat);
+      dome.position.y = 1.2 * scale;
+      group.add(dome);
+
+      return group;
+    }
+
+    // MODELO DE COPO SUPREMO DE AÇAÍ COM LEITE NINHO (FASE 3)
+    function createAcaiNinhoCupModel(scale = 0.75) {
+      const group = createAcaiCupModel(scale);
+
+      // Camadas de Leite Ninho visíveis no copo
+      const ninhoLayerGeo = new THREE.CylinderGeometry(0.49 * scale, 0.42 * scale, 0.25 * scale, 16);
+      const ninhoLayerMat = new THREE.MeshStandardMaterial({ color: 0xfff8dc, roughness: 0.8 });
+      const ninhoLayer = new THREE.Mesh(ninhoLayerGeo, ninhoLayerMat);
+      ninhoLayer.position.y = 0.7 * scale;
+      group.add(ninhoLayer);
+
+      // Montanha de Leite Ninho por cima da tampa
+      const topNinhoGeo = new THREE.ConeGeometry(0.45 * scale, 0.4 * scale, 12);
+      const topNinho = new THREE.Mesh(topNinhoGeo, ninhoLayerMat);
+      topNinho.position.y = 1.35 * scale;
+      group.add(topNinho);
+
+      return group;
+    }
+
+    function createAcaiBowlModel(scale = 1) {
+      const group = new THREE.Group();
+      const bowlGeo = new THREE.CylinderGeometry(1.6 * scale, 1.0 * scale, 1.2 * scale, 24);
+      const bowlMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.1, metalness: 0.1 });
+      const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+      bowl.position.y = (0.6 * scale);
+      group.add(bowl);
+
+      const acaiGeo = new THREE.CylinderGeometry(1.52 * scale, 1.4 * scale, 0.3 * scale, 24);
+      const acaiMat = new THREE.MeshStandardMaterial({ color: 0x240024, roughness: 0.3 });
+      const acai = new THREE.Mesh(acaiGeo, acaiMat);
+      acai.position.y = (1.1 * scale);
+      group.add(acai);
+
+      const ninhoGeo = new THREE.CylinderGeometry(1.4 * scale, 1.3 * scale, 0.05 * scale, 20);
+      const ninhoMat = new THREE.MeshStandardMaterial({ color: 0xfff8dc, roughness: 0.9 });
+      const ninho = new THREE.Mesh(ninhoGeo, ninhoMat);
+      ninho.position.y = (1.23 * scale);
+      group.add(ninho);
+
+      const bananaGeo = new THREE.CylinderGeometry(0.25 * scale, 0.25 * scale, 0.06 * scale, 12);
+      const bananaMat = new THREE.MeshStandardMaterial({ color: 0xfff3a0, roughness: 0.4 });
+      for (let i = 0; i < 5; i++) {
+        const banana = new THREE.Mesh(bananaGeo, bananaMat);
+        const angle = i * 1.2;
+        banana.position.set(Math.cos(angle) * 0.8 * scale, 1.27 * scale, Math.sin(angle) * 0.8 * scale);
+        group.add(banana);
+      }
+
+      const strawPiece = createRealisticStrawberry(0.3 * scale);
+      strawPiece.position.set(0, 1.35 * scale, 0);
+      strawPiece.rotation.z = 1.2;
+      group.add(strawPiece);
+
+      return group;
+    }
+
+    function createAcaiPileModel() {
+      const group = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x240024, roughness: 0.4 });
+      const ninhoMat = new THREE.MeshStandardMaterial({ color: 0xfff8dc, roughness: 0.9 });
+
+      for (let i = 0; i < 14; i++) {
+        const radius = 0.5 + Math.random() * 0.7;
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 12), mat);
+        sphere.position.set((Math.random() - 0.5) * 2.2, radius * 0.6, (Math.random() - 0.5) * 2.2);
+        group.add(sphere);
+
+        if (Math.random() > 0.4) {
+          const ninhoSpot = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.8, 8, 8), ninhoMat);
+          ninhoSpot.position.copy(sphere.position);
+          ninhoSpot.position.y += 0.2;
+          group.add(ninhoSpot);
+        }
+      }
+      return group;
+    }
+
+    const playerGroup = createPlayerModel();
+    playerGroup.position.set(-10, 0, 0);
+    scene.add(playerGroup);
+
+    let bossGroup = createAcaiBowlModel(1.3);
+    bossGroup.position.set(10, 0, 0);
+    scene.add(bossGroup);
+
+    // --- ESTADO DO JOGO ---
+    const state = {
+      gameStarted: false,
+      gameOver: false,
+      player: { x: -10, z: 0, hp: 100, maxHp: 100, baseSpeed: 0.22, currentSpeed: 0.22, radius: 1.1, invulnerable: 0 },
+      boss: { x: 10, z: 0, hp: 1000, maxHp: 1000, dirZ: 1, speed: 0.09, radius: 2.1, inTransition: false },
+      phase: 1,
+      special: 0,
+      lastShoot: 0,
+      lastBossShoot: 0,
+      lastMinionSpawn: 0,
+      lastAcaiRain: 0,
+      keys: {},
+      raycaster: new THREE.Raycaster(),
+      mouseVec: new THREE.Vector2(),
+      targetPoint: new THREE.Vector3()
+    };
+
+    let bulletsPlayer = [];
+    let bulletsBoss = [];
+    let minions = [];
+    let particles = [];
+    let puddles = [];
+    let fallingAcais = [];
+    let activeBeam = null;
+
+    function getDistance2D(pos1, pos2) {
+      return Math.hypot(pos1.x - pos2.x, pos1.z - pos2.z);
+    }
+
+    // --- FUNÇÕES DE INTERFACE ---
+    function startGame() {
+      document.getElementById('start-menu').style.display = 'none';
+      document.getElementById('hud').style.display = 'flex';
+      document.getElementById('controls-hint').style.display = 'block';
+      state.gameStarted = true;
+      playEpicMusic();
+    }
+
+    function showGameOver() {
+      state.gameOver = true;
+      document.getElementById('hud').style.display = 'none';
+      document.getElementById('controls-hint').style.display = 'none';
+      document.getElementById('gameover-menu').style.display = 'flex';
+      playSadMusic();
+    }
+
+    function giveUp() {
+      alert("Você desistiu da batalha...");
+      window.close();
+      setTimeout(() => {
+        document.body.innerHTML = "<h1 style='color:white; text-align:center; margin-top:20%;'>Jogo encerrado. Você pode fechar esta aba.</h1>";
+      }, 500);
+    }
+
+    // --- CONTROLES ---
+    window.addEventListener('keydown', e => {
+      state.keys[e.code] = true;
+      if (e.code === 'KeyE' && state.gameStarted && !state.gameOver) fireSpecialBeam();
+    });
+    window.addEventListener('keyup', e => state.keys[e.code] = false);
+
+    const planeRay = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    window.addEventListener('mousemove', e => {
+      state.mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
+      state.mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      state.raycaster.setFromCamera(state.mouseVec, camera);
+      state.raycaster.ray.intersectPlane(planeRay, state.targetPoint);
+    });
+
+    window.addEventListener('mousedown', e => {
+      if (e.button === 0 && state.gameStarted && !state.gameOver) shootPlayer();
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- FASES E LÓGICA DE JOGO ---
+    function triggerPhaseTransition(newPhase) {
+      state.boss.inTransition = true;
+      state.phase = newPhase;
+
+      const banner = document.getElementById('boss-banner');
+
+      if (newPhase === 2) {
+        banner.innerText = "FASE 2: ATAQUE DE COPOS DE AÇAÍ!";
+      } else if (newPhase === 3) {
+        banner.innerText = "FASE 3: COPOS SUPREMOS DE LEITE NINHO!";
+      } else if (newPhase === 4) {
+        scene.remove(bossGroup);
+        bossGroup = createAcaiPileModel();
+        bossGroup.position.set(10, 0, 0);
+        scene.add(bossGroup);
+        state.boss.hp = 150;
+        state.boss.maxHp = 150;
+
+        for (let m of minions) scene.remove(m.mesh);
+        minions = [];
+
+        banner.style.color = "#ffe600";
+        banner.innerText = "FINALIZE-O E SE TORNE O MELHOR!";
+      }
+
+      banner.style.transform = "translate(-50%, -50%) scale(1.1)";
+      for (let i = 0; i < 50; i++) disintegrateMinion(bossGroup.position);
+
+      setTimeout(() => {
+        banner.style.transform = "translate(-50%, -50%) scale(0)";
+        state.boss.inTransition = false;
+      }, 2500);
+    }
+
+    function spawnTargetedAcai() {
+      const targetPos = playerGroup.position.clone();
+      const markerGeo = new THREE.RingGeometry(0.1, 1.8, 32);
+      const markerMat = new THREE.MeshBasicMaterial({ color: 0xff0033, side: THREE.DoubleSide });
+      const marker = new THREE.Mesh(markerGeo, markerMat);
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(targetPos.x, 0.03, targetPos.z);
+      scene.add(marker);
+
+      const acaiMesh = createAcaiCupModel(1.2);
+      acaiMesh.position.set(targetPos.x, 18, targetPos.z);
+      scene.add(acaiMesh);
+
+      fallingAcais.push({
+        mesh: acaiMesh, marker, target: targetPos, startTime: performance.now(), duration: 1500
+      });
+    }
+
+    function disintegrateMinion(pos) {
+      for (let i = 0; i < 25; i++) {
+        const isAcai = Math.random() > 0.3;
+        const p = new THREE.Mesh(
+          new THREE.BoxGeometry(0.15, 0.15, 0.15),
+          new THREE.MeshStandardMaterial({ color: isAcai ? 0x240024 : 0xfff8dc, roughness: 0.5 })
+        );
+        p.position.copy(pos);
+        p.position.y = 0.5;
+
+        const vel = new THREE.Vector3((Math.random() - 0.5) * 0.7, Math.random() * 0.6 + 0.2, (Math.random() - 0.5) * 0.7);
+        scene.add(p);
+        particles.push({ mesh: p, vel, life: 1.0, rot: new THREE.Vector3(Math.random()*0.3, Math.random()*0.3, Math.random()*0.3) });
+      }
+    }
+
+    function damagePlayer(amount) {
+      if (Date.now() < state.player.invulnerable || state.gameOver) return;
+
+      state.player.hp = Math.max(0, state.player.hp - amount);
+      state.player.invulnerable = Date.now() + 600;
+
+      document.getElementById('player-health-bar').style.width = `${(state.player.hp / state.player.maxHp) * 100}%`;
+
+      const overlay = document.getElementById('damage-overlay');
+      overlay.style.backgroundColor = 'rgba(255, 0, 0, 0.4)';
+      setTimeout(() => overlay.style.backgroundColor = 'rgba(255, 0, 0, 0)', 150);
+
+      if (state.player.hp <= 0) {
+        showGameOver();
+      }
+    }
+
+    // --- ATAQUES ---
+
+    function shootPlayer() {
+      const now = performance.now();
+      if (now - state.lastShoot < 120) return;
+      state.lastShoot = now;
+
+      const dir = new THREE.Vector3().subVectors(state.targetPoint, playerGroup.position);
+      dir.y = 0; dir.normalize();
+
+      const strawberryProj = createRealisticStrawberry(0.45);
+      strawberryProj.position.copy(playerGroup.position);
+      strawberryProj.position.y = 0.8;
+      strawberryProj.rotation.x = Math.PI / 2;
+      scene.add(strawberryProj);
+
+      bulletsPlayer.push({ mesh: strawberryProj, dir, speed: 0.52, damage: 18, radius: 0.4 });
+    }
+
+    function fireSpecialBeam() {
+      if (state.special < 100 || activeBeam) return;
+      state.special = 0;
+      document.getElementById('special-bar').style.width = '0%';
+
+      const beamLength = 35;
+      const beamGroup = new THREE.Group();
+
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, beamLength, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      core.rotation.x = Math.PI / 2; core.position.z = beamLength / 2;
+      beamGroup.add(core);
+
+      const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, beamLength, 16), new THREE.MeshBasicMaterial({ color: 0xff0044, transparent: true, opacity: 0.55 }));
+      aura.rotation.x = Math.PI / 2; aura.position.z = beamLength / 2;
+      beamGroup.add(aura);
+
+      for(let i = 0; i < 18; i++) {
+        const pStr = createRealisticStrawberry(0.25);
+        pStr.position.set((Math.random() - 0.5) * 1.4, (Math.random() - 0.5) * 1.4, Math.random() * beamLength);
+        beamGroup.add(pStr);
+      }
+
+      beamGroup.position.copy(playerGroup.position);
+      beamGroup.position.y = 0.8;
+
+      const target = state.targetPoint.clone();
+      target.y = 0.8;
+      beamGroup.lookAt(target);
+
+      scene.add(beamGroup);
+
+      const dir = new THREE.Vector3().subVectors(state.targetPoint, playerGroup.position);
+      dir.y = 0; dir.normalize();
+
+      activeBeam = { mesh: beamGroup, dir: dir, startTime: performance.now(), duration: 900 };
+    }
+
+    function bossShoot() {
+      const dir = new THREE.Vector3().subVectors(playerGroup.position, bossGroup.position);
+      dir.y = 0; dir.normalize();
+
+      let mesh;
+      let projSpeed = 0.24 + (state.phase * 0.05);
+      let projDamage = 18;
+
+      if (state.phase === 1) {
+        mesh = createNinhoCanModel(0.7);
+      } else if (state.phase === 2) {
+        // FASE 2: COPO DE AÇAÍ PURO
+        mesh = createAcaiCupModel(0.85);
+      } else if (state.phase === 3) {
+        // FASE 3: COPO SUPREMO DE AÇAÍ COM LEITE NINHO
+        mesh = createAcaiNinhoCupModel(0.9);
+      } else if (state.phase === 4) {
+        mesh = createAcaiCupModel(0.5);
+        projSpeed = 0.08;
+        projDamage = 2;
+      }
+
+      mesh.position.copy(bossGroup.position);
+      mesh.position.y = 0.8;
+      scene.add(mesh);
+
+      bulletsBoss.push({ mesh, dir, speed: projSpeed, damage: projDamage, radius: 0.6 });
+    }
+
+    function spawnMinion() {
+      const minionMesh = createAcaiBowlModel(0.45);
+      minionMesh.position.copy(bossGroup.position);
+      scene.add(minionMesh);
+      minions.push({ mesh: minionMesh, speed: 0.1, radius: 0.95 });
+    }
+
+    // --- LOOP PRINCIPAL ---
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      if (!state.gameStarted || state.gameOver) {
+        renderer.render(scene, camera);
+        return;
+      }
+
+      // Movimentação do Player
+      if (state.keys['KeyW'] && playerGroup.position.z > -9.5) playerGroup.position.z -= state.player.currentSpeed;
+      if (state.keys['KeyS'] && playerGroup.position.z < 9.5) playerGroup.position.z += state.player.currentSpeed;
+      if (state.keys['KeyA'] && playerGroup.position.x > -15) playerGroup.position.x -= state.player.currentSpeed;
+      if (state.keys['KeyD'] && playerGroup.position.x < 15) playerGroup.position.x += state.player.currentSpeed;
+
+      if (state.targetPoint) {
+        playerGroup.lookAt(state.targetPoint.x, playerGroup.position.y, state.targetPoint.z);
+      }
+
+      playerGroup.visible = (Date.now() < state.player.invulnerable) ? (Math.floor(Date.now() / 80) % 2 === 0) : true;
+
+      // Movimentação do Boss
+      if (!state.boss.inTransition && state.phase !== 4) {
+        bossGroup.position.z += state.boss.dirZ * (state.boss.speed + (state.phase * 0.02));
+        if (bossGroup.position.z <= -8 || bossGroup.position.z >= 8) state.boss.dirZ *= -1;
+        bossGroup.rotation.y += 0.01 + (state.phase * 0.01);
+      }
+
+      // Troca de Fases
+      const hpPercent = state.boss.hp / state.boss.maxHp;
+      const bossHealthBar = document.getElementById('boss-health-bar');
+      const phaseText = document.getElementById('phase-text');
+
+      if (state.phase === 1) {
+        phaseText.innerText = "FASE 1: Lançando Latas de Leite Ninho!";
+        bossHealthBar.style.backgroundColor = "#2ecc71";
+        if (hpPercent <= 0.66) triggerPhaseTransition(2);
+      } else if (state.phase === 2) {
+        phaseText.innerText = "FASE 2: Lançando Copos de Açaí!";
+        bossHealthBar.style.backgroundColor = "#f39c12";
+        if (hpPercent <= 0.33) triggerPhaseTransition(3);
+      } else if (state.phase === 3) {
+        phaseText.innerText = "FASE 3: ATAQUE SUPREMO DE AÇAÍ COM NINHO!";
+        bossHealthBar.style.backgroundColor = "#e74c3c";
+        if (hpPercent <= 0) triggerPhaseTransition(4);
+      } else if (state.phase === 4) {
+        phaseText.innerText = "FASE 4: FINALIZE-O E SE TORNE O MELHOR!";
+        bossHealthBar.style.backgroundColor = "#9b59b6";
+      }
+
+      // Spawns
+      if (!state.boss.inTransition) {
+        const shootInterval = state.phase === 4 ? 1800 : (state.phase === 3 ? 450 : 850);
+        if (timestamp - state.lastBossShoot > shootInterval) {
+          bossShoot();
+          state.lastBossShoot = timestamp;
+        }
+
+        if (state.phase !== 4 && timestamp - state.lastMinionSpawn > (state.phase === 3 ? 2800 : 3800)) {
+          spawnMinion();
+          state.lastMinionSpawn = timestamp;
+        }
+
+        if (state.phase === 3 && timestamp - state.lastAcaiRain > 2200) {
+          spawnTargetedAcai();
+          state.lastAcaiRain = timestamp;
+        }
+      }
+
+      // Chuva de Açaí
+      for (let i = fallingAcais.length - 1; i >= 0; i--) {
+        const fall = fallingAcais[i];
+        const elapsed = timestamp - fall.startTime;
+        const progress = Math.min(1, elapsed / fall.duration);
+
+        fall.marker.scale.set(progress, progress, 1);
+        fall.mesh.position.y = 18 * (1 - progress);
+
+        if (progress >= 1) {
+          disintegrateMinion(fall.target);
+          if (getDistance2D(playerGroup.position, fall.target) < 2.0) damagePlayer(35);
+          scene.remove(fall.mesh);
+          scene.remove(fall.marker);
+          fallingAcais.splice(i, 1);
+        }
+      }
+
+      // Especial
+      if (activeBeam) {
+        const elapsed = timestamp - activeBeam.startTime;
+        activeBeam.mesh.position.copy(playerGroup.position);
+        activeBeam.mesh.position.y = 0.8;
+        const target = state.targetPoint.clone();
+        target.y = 0.8;
+        activeBeam.mesh.lookAt(target);
+
+        const toBoss = new THREE.Vector3().subVectors(bossGroup.position, playerGroup.position);
+        toBoss.y = 0;
+        const bossProjLength = toBoss.dot(activeBeam.dir);
+        if (bossProjLength > 0 && bossProjLength < 35) {
+          const projPoint = activeBeam.dir.clone().multiplyScalar(bossProjLength);
+          if (toBoss.distanceTo(projPoint) < (2.2 + state.boss.radius)) {
+            state.boss.hp = Math.max(0, state.boss.hp - 4);
+            bossHealthBar.style.width = `${(state.boss.hp / state.boss.maxHp) * 100}%`;
+          }
+        }
+
+        if (elapsed > activeBeam.duration) {
+          scene.remove(activeBeam.mesh);
+          activeBeam = null;
+        }
+      }
+
+      // Projéteis do Jogador
+      for (let i = bulletsPlayer.length - 1; i >= 0; i--) {
+        const b = bulletsPlayer[i];
+        b.mesh.position.addScaledVector(b.dir, b.speed);
+        b.mesh.rotation.y += 0.2;
+
+        if (getDistance2D(b.mesh.position, bossGroup.position) < (b.radius + state.boss.radius)) {
+          state.boss.hp = Math.max(0, state.boss.hp - b.damage);
+          bossHealthBar.style.width = `${(state.boss.hp / state.boss.maxHp) * 100}%`;
+
+          if (state.special < 100) {
+            state.special = Math.min(100, state.special + 7);
+            document.getElementById('special-bar').style.width = `${state.special}%`;
+          }
+
+          scene.remove(b.mesh);
+          bulletsPlayer.splice(i, 1);
+
+          if (state.phase === 4 && state.boss.hp <= 0) {
+            alert("você o finalizou.. mas a que custo?........");
+            location.reload();
+            return;
+          }
+          continue;
+        }
+
+        if (Math.abs(b.mesh.position.x) > 17 || Math.abs(b.mesh.position.z) > 11) {
+          scene.remove(b.mesh);
+          bulletsPlayer.splice(i, 1);
+        }
+      }
+
+      // Projéteis do Boss
+      for (let i = bulletsBoss.length - 1; i >= 0; i--) {
+        const b = bulletsBoss[i];
+        b.mesh.position.addScaledVector(b.dir, b.speed);
+        b.mesh.rotation.y += 0.1;
+
+        if (getDistance2D(b.mesh.position, playerGroup.position) < (b.radius + state.player.radius)) {
+          damagePlayer(b.damage);
+          scene.remove(b.mesh);
+          bulletsBoss.splice(i, 1);
+          continue;
+        }
+
+        if (Math.abs(b.mesh.position.x) > 17 || Math.abs(b.mesh.position.z) > 11) {
+          scene.remove(b.mesh);
+          bulletsBoss.splice(i, 1);
+        }
+      }
+
+      // Mini Açaís
+      for (let i = minions.length - 1; i >= 0; i--) {
+        const m = minions[i];
+        const dir = new THREE.Vector3().subVectors(playerGroup.position, m.mesh.position);
+        dir.y = 0; dir.normalize();
+        m.mesh.position.addScaledVector(dir, m.speed);
+
+        if (getDistance2D(m.mesh.position, playerGroup.position) < (m.radius + state.player.radius)) {
+          damagePlayer(20);
+          disintegrateMinion(m.mesh.position);
+          scene.remove(m.mesh);
+          minions.splice(i, 1);
+        }
+      }
+
+      // Partículas
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.mesh.position.add(p.vel);
+        p.vel.y -= 0.018;
+        p.life -= 0.03;
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          particles.splice(i, 1);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
